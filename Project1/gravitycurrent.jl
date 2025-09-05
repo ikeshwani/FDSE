@@ -3,6 +3,14 @@
 # Load some standard libraries that we will need
 using Printf
 using Oceananigans
+using Oceanostics
+using Oceananigans.AbstractOperations: KernelFunctionOperation
+
+@inline function PotentialEnergy(model)
+    b = model.tracers.b
+    grid = model.grid
+    return KernelFunctionOperation{Center, Center, Center}(bz_ccc, grid, b)
+end
 
 # First, we need to set some physical parameters for the simulation
 # Set the domain size in non-dimensional coordinates
@@ -18,10 +26,10 @@ max_Δt = 0.05 # maximum allowable timestep
 duration = 20 # The non-dimensional duration of the simulation
 
 # Set the Reynolds number (Re=Ul/ν)
-Re = 5000
+Re = 6000
 
 # Set the change in the non-dimensional buouancy 
-Δb = 1 
+Δb = 8
 
 # Set the amplitude of the random perturbation (kick)
 kick = 0.05
@@ -29,6 +37,7 @@ kick = 0.05
 # Now, some parameters that will be used for the initial conditions
 xl = Lx / 10 # The location of the 'lock'
 Lf = Lx / 100 # The width of the initial buoyancy step
+
 
 # construct a rectilinear grid using an inbuilt Oceananigans function
 # Here, the topology parameter sets the style of boundaries in the x, y, and z directions
@@ -68,7 +77,7 @@ model = NonhydrostaticModel(; grid,
 uᵢ(x, z) = kick * randn()
 vᵢ(x, z) = 0
 wᵢ(x, z) = kick * randn()
-bᵢ(x, z) = (Δb / 2) * (1 + tanh((x - xl) / Lf))
+bᵢ(x, z) = (Δb / 2) * (1 + tanh((x - xl) / Lf)) + (-Δb / 2) * (1 + tanh((x-9*xl) / Lf))
 cᵢ(x, z) = exp(-((x - Lx / 2) / (Lx / 50))^2) # Initialize with a thin tracer (dye) streak in the center of the domain
 
 # Send the initial conditions to the model to initialize the variables
@@ -107,11 +116,20 @@ u, v, w = model.velocities # unpack velocity `Field`s
 b = model.tracers.b # extract the buoyancy
 c = model.tracers.c # extract the tracer
 
+pe = PotentialEnergy(model) # extract the potential energy diagnostic
+
+#using Oceanostics to define online diagnostics
+ke = KineticEnergy(model)
+ε = KineticEnergyDissipationRate(model)
+χ = TracerVarianceDissipationRate(model, :b)
+
+oceanostics_diags = (; pe, ke, ε, χ)
+
 # Set the name of the output file
 filename = "gravitycurrent"
 
 simulation.output_writers[:xz_slices] =
-    JLD2Writer(model, (; u, v, w, b, c),
+    JLD2Writer(model, (; u, v, w, b, c, pe, ke, ε, χ),
                           filename = filename * ".jld2",
                           indices = (:, 1, :),
                          schedule = TimeInterval(0.2),
@@ -127,6 +145,9 @@ simulation.output_writers[:xz_slices] =
 #                            overwrite_existing = true)
 
 nothing # hide
+
+
+
 
 # Now, run the simulation
 run!(simulation)

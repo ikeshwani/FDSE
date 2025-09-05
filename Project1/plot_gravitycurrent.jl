@@ -66,8 +66,8 @@ anim = @animate for (i, iter) in enumerate(iterations)
     c_title = @sprintf("c (dye), t = %s", round(t));
 
 # Combine the sub-plots into a single figure
-    plot(b_xz_plot, c_xz_plot, layout = (2, 1), size = (1600, 400),
-    title = [b_title c_title])
+    plot(b_xz_plot, c_xz_plot, u_xz_plot, layout = (3, 1), size = (1600, 400),
+         title = [b_title c_title u_title])
 
     iter == iterations[end] && close(file_xz)
 end
