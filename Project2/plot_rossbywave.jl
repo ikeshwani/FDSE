@@ -12,6 +12,7 @@ u_ic = FieldTimeSeries(filename * ".jld2", "u", iterations = 0)
 v_ic = FieldTimeSeries(filename * ".jld2", "v", iterations = 0)
 w_ic = FieldTimeSeries(filename * ".jld2", "w", iterations = 0)
 c_ic = FieldTimeSeries(filename * ".jld2", "c", iterations = 0)
+ω_ic = FieldTimeSeries(filename * ".jld2", "ω", iterations = 0)
 
 ## Load in coordinate arrays
 ## We do this separately for each variable since Oceananigans uses a staggered grid
@@ -19,6 +20,8 @@ xu, yu, zu = nodes(u_ic)
 xv, yv, zv = nodes(v_ic)
 xw, yw, zw = nodes(w_ic)
 xc, yc, zc = nodes(c_ic)
+xω, yω, zω = nodes(ω_ic)
+
 
 ## Now, open the file with our data
 file_xy = jldopen(filename * ".jld2")
@@ -30,6 +33,7 @@ iterations = parse.(Int, keys(file_xy["timeseries/t"]))
 
 t_save = zeros(length(iterations))
 u_mid = zeros(length(u_ic[:, 1, 1, 1]), length(iterations))
+ω_mid = zeros(length(ω_ic[:, 1, 1, 1]), length(iterations))
 
 # Here, we loop over all iterations
 anim = @animate for (i, iter) in enumerate(iterations)
@@ -40,11 +44,13 @@ anim = @animate for (i, iter) in enumerate(iterations)
     v_xy = file_xy["timeseries/v/$iter"][:, :, 1];
     w_xy = file_xy["timeseries/w/$iter"][:, :, 1];
     c_xy = file_xy["timeseries/c/$iter"][:, :, 1];
+    ω_xy = file_xy["timeseries/ω/$iter"][:, :, 1];
     
     t = file_xy["timeseries/t/$iter"];
 
     # Save some variables to plot at the end
     u_mid[: , i] = u_xy[:, 64, 1]
+    ω_mid[: , i] = ω_xy[:, 64, 1]
     t_save[i] = t # save the time
 
     u_title = @sprintf("u (m/s), t = %s days", round(t/1day));
@@ -55,10 +61,11 @@ anim = @animate for (i, iter) in enumerate(iterations)
     u_xy_plot = Plots.heatmap(xu/1e3, yu/1e3, u_xy'; color = :balance, xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title=u_title, fontsize=14);  
     v_xy_plot = Plots.heatmap(xu/1e3, yu/1e3, u_xy'; color = :balance, xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title=v_title, fontsize=14);  
     w_xy_plot = Plots.heatmap(xu/1e3, yu/1e3, u_xy'; color = :balance, xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title=w_title, fontsize=14);  
-    c_xy_plot = Plots.heatmap(xc/1e3, yc/1e3, c_xy'; color = :balance, xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title=c_title, fontsize=14);  
+    c_xy_plot = Plots.heatmap(xc/1e3, yc/1e3, c_xy'; color = :balance, xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title=c_title, fontsize=14);
+    ω_xy_plot = Plots.heatmap(xω/1e3, yω/1e3, ω_xy'; color = :curl,   xlabel = "x (km)", ylabel = "y (km)", aspect_ratio = :equal, title="vorticity", fontsize=14);
 
-    plot(u_xy_plot, c_xy_plot, layout = (1, 2), size = (1300, 600))
-    
+    plot(u_xy_plot, c_xy_plot, ω_xy_plot, layout = (1, 3), size = (1300, 600))
+
     iter == iterations[end] && close(file_xy)
 end
 
@@ -67,3 +74,14 @@ mp4(anim, "rossbywave.mp4", fps = 20) # hide
 
 # Now, make a plot of our saved variables
 Plots.heatmap(xu / 1kilometer, t_save / 1day, u_mid', xlabel="x (km)", ylabel="t (days)", title="u at y=Ly/2")
+Plots.heatmap(xu / 1kilometer, t_save / 1day, ω_mid', xlabel="x (km)", ylabel="t (days)", title="ω at y=Ly/2", color = :curl)
+
+# calculate the phase speed of the wave
+β = model.coriolis.β
+k = 2 * pi / 200kilometers
+l = 2 * pi / 200kilometers
+freq = k * u₀ - β * k / (k^2 + l^2)
+c_phase = freq / k
+
+
+println("The phase speed of the wave is $(round(c_phase, sigdigits=3)) m/s")

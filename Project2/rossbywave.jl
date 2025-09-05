@@ -17,7 +17,7 @@ Ny = 128   # number of grid points in y-direction
 # Construct a rectilinear grid that is periodic in x-direction and bounded in y-direction
 grid = RectilinearGrid(size = (Nx, Ny),
                        x = (0, Lx), y = (0, Ly),
-                       topology = (Periodic, Bounded, Flat)
+                       topology = (Bounded, Bounded, Flat)
 )
 
 # Set up a model for Rossby waves
@@ -33,7 +33,7 @@ k = 2 * pi / 200kilometers
 l = 2 * pi / 200kilometers
 
 # Define functions for the initial conditions
-u₀ = 0.001   # units: m/s
+u₀ = 0.08   # units: m/s
 uᵢ(x, y) = u₀ * sin(k * x) * sin(l * y)
 vᵢ(x, y) = u₀ * (k / l) * cos(k * x) * cos(l * y)
 wᵢ(x, y) = 0
@@ -43,7 +43,7 @@ cᵢ(x, y) = sin(k * x) * cos(l * y) # Here, we set the function for c so that i
 set!(model, u = uᵢ, v = vᵢ, w = wᵢ, c = cᵢ)
 
 # Create a 'simulation' to run the model for a specified length of time
-simulation = Simulation(model, Δt = 10hours, stop_iteration = 1000)
+simulation = Simulation(model, Δt = 10hours, stop_iteration = 2000)
 
 # Add callback that prints progress message during simulation
 progress(sim) = @info string("Iter: ", iteration(sim),
@@ -56,8 +56,10 @@ filename = "rossbywave"
 
 u, v, w = model.velocities
 c = model.tracers.c
+# calculate the vorticity of the velocity field , ω = ∇ × u
+ω = ∂x(v) - ∂y(u)
 
-simulation.output_writers[:jld2] = JLD2Writer(model, (; u, v, w, c),
+simulation.output_writers[:jld2] = JLD2Writer(model, (; u, v, w, c, ω),
                                                     schedule = IterationInterval(10),
                                                     filename = filename * ".jld2",
                                                     overwrite_existing = true,
